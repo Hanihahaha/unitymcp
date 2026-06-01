@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "unity": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "E:\\Project\\unitymcp\\server\\UnityMcpServer\\UnityMcpServer.csproj"
+      ],
+      "env": {
+        "UNITY_MCP_BRIDGE_URL": "http://127.0.0.1:8765",
+        "UNITY_MCP_UNITY_PATH": "C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.62f1\\Editor\\Unity.exe"
+      }
+    }
+  }
+}

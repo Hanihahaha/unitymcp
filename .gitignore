@@ -1,0 +1,5 @@
+server/UnityMcpServer/bin/*
+server/UnityMcpServer/obj/*
+*.meta
+*.sln
+.vs/
