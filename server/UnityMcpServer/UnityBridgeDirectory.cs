@@ -54,17 +54,7 @@ internal sealed class UnityBridgeDirectory
                 : BridgeEndpointResolution.Resolved(match, normalizedProjectPath, endpoints);
         }
 
-        if (endpoints.Count == 1)
-        {
-            return BridgeEndpointResolution.Resolved(endpoints[0], null, endpoints);
-        }
-
-        if (endpoints.Count == 0)
-        {
-            return BridgeEndpointResolution.Failed("No Unity Bridge is reachable in the configured port range.", null, endpoints);
-        }
-
-        return BridgeEndpointResolution.Failed("Multiple Unity Bridges are reachable. Pass projectPath to select one.", null, endpoints);
+        return BridgeEndpointResolution.Failed("projectPath is required to select a Unity Bridge.", null, endpoints);
     }
 
     private async Task<List<BridgeEndpoint>> ScanAsync()

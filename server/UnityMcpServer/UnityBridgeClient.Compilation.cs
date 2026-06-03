@@ -15,9 +15,7 @@ internal sealed partial class UnityBridgeClient
     {
         var startedAt = DateTime.UtcNow;
         var target = ReadCompileTarget(args);
-        var readiness = string.IsNullOrWhiteSpace(target.ProjectPath)
-            ? await PrepareConnectedProjectForCompileAsync(args)
-            : await PrepareRequestedProjectForCompileAsync(startedAt, target, args);
+        var readiness = await PrepareRequestedProjectForCompileAsync(startedAt, target, args);
         if (readiness.externalCompile != null)
         {
             return readiness.externalCompile;
@@ -142,19 +140,6 @@ internal sealed partial class UnityBridgeClient
             return readiness;
         }
 
-        return await StopPlayModeBeforeCompileAsync(readiness, args);
-    }
-
-    private async Task<BridgeReadiness> PrepareConnectedProjectForCompileAsync(JsonObject args)
-    {
-        var resolution = await bridgeDirectory.ResolveAsync(null);
-        if (resolution.Endpoint == null)
-        {
-            return new BridgeReadiness(false, BuildBridgeResolutionError(resolution), null, null, null);
-        }
-
-        var projectInfo = resolution.Endpoint.ProjectInfo;
-        var readiness = new BridgeReadiness(true, "Unity Bridge is connected to the current project.", projectInfo, resolution.Endpoint.ProjectPath, null, endpoint: resolution.Endpoint);
         return await StopPlayModeBeforeCompileAsync(readiness, args);
     }
 
