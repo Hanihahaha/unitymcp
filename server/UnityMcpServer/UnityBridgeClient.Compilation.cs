@@ -10,6 +10,7 @@ internal sealed partial class UnityBridgeClient
     private const int DefaultCompileSettleMs = 1500;
     private const int MaxCompileSettleMs = 10000;
     private const int DefaultStopPlayModeTimeoutMs = 30000;
+    private const int DefaultBridgeReconnectTimeoutMs = 120000;
 
     private async Task<object> RequestScriptCompileAsync(JsonObject args)
     {
@@ -30,8 +31,11 @@ internal sealed partial class UnityBridgeClient
 
         try
         {
-            using var requestDocument = await GetBridgeJsonAsync(readiness.endpoint!, "request-script-compile");
-            request = requestDocument == null ? null : JsonNode.Parse(requestDocument.RootElement.GetRawText());
+            if (!readiness.bridgeReconnected)
+            {
+                using var requestDocument = await GetBridgeJsonAsync(readiness.endpoint!, "request-script-compile");
+                request = requestDocument == null ? null : JsonNode.Parse(requestDocument.RootElement.GetRawText());
+            }
         }
         catch (Exception ex)
         {
@@ -42,7 +46,7 @@ internal sealed partial class UnityBridgeClient
         {
             completed = requestError == null && !ReadError(request),
             timedOut = false,
-            bridgeReconnected = false,
+            bridgeReconnected = readiness.bridgeReconnected,
             elapsedMs = ElapsedMs(startedAt),
             requested = request,
             requestError,
@@ -51,7 +55,9 @@ internal sealed partial class UnityBridgeClient
             stoppedPlayMode = readiness.stoppedPlayMode,
             stopPlayMode = readiness.stopPlayMode,
             message = requestError == null
-                ? readiness.stoppedPlayMode
+                ? readiness.bridgeReconnected
+                    ? "Unity Bridge reconnected after an existing compile or domain reload. No additional compile request was sent."
+                    : readiness.stoppedPlayMode
                     ? "Unity exited Play mode and script compilation was requested."
                     : "Unity script compilation was requested."
                 : "Failed to request Unity script compilation: " + requestError
@@ -77,8 +83,11 @@ internal sealed partial class UnityBridgeClient
 
         try
         {
-            using var requestDocument = await GetBridgeJsonAsync(readiness.endpoint!, "request-script-compile");
-            request = requestDocument == null ? null : JsonNode.Parse(requestDocument.RootElement.GetRawText());
+            if (!readiness.bridgeReconnected)
+            {
+                using var requestDocument = await GetBridgeJsonAsync(readiness.endpoint!, "request-script-compile");
+                request = requestDocument == null ? null : JsonNode.Parse(requestDocument.RootElement.GetRawText());
+            }
         }
         catch (Exception ex)
         {
@@ -92,7 +101,7 @@ internal sealed partial class UnityBridgeClient
         {
             completed = wait.completed,
             timedOut = wait.timedOut,
-            bridgeReconnected = wait.bridgeReconnected,
+            bridgeReconnected = readiness.bridgeReconnected || wait.bridgeReconnected,
             elapsedMs = wait.elapsedMs,
             requested = request,
             requestError,
@@ -123,7 +132,7 @@ internal sealed partial class UnityBridgeClient
         {
             completed = wait.completed,
             timedOut = wait.timedOut,
-            bridgeReconnected = wait.bridgeReconnected,
+            bridgeReconnected = readiness.bridgeReconnected || wait.bridgeReconnected,
             elapsedMs = wait.elapsedMs,
             finalState = wait.finalState,
             stoppedPlayMode = readiness.stoppedPlayMode,
@@ -134,7 +143,7 @@ internal sealed partial class UnityBridgeClient
 
     private async Task<BridgeReadiness> PrepareRequestedProjectForCompileAsync(DateTime startedAt, CompileTarget target, JsonObject args)
     {
-        var readiness = await EnsureRequestedProjectOrCompileExternallyAsync(startedAt, target);
+        var readiness = await EnsureRequestedProjectOrCompileExternallyAsync(startedAt, target, args);
         if (!readiness.isReady || readiness.externalCompile != null)
         {
             return readiness;
@@ -143,14 +152,14 @@ internal sealed partial class UnityBridgeClient
         return await StopPlayModeBeforeCompileAsync(readiness, args);
     }
 
-    private async Task<BridgeReadiness> EnsureRequestedProjectOrCompileExternallyAsync(DateTime startedAt, CompileTarget target)
+    private async Task<BridgeReadiness> EnsureRequestedProjectOrCompileExternallyAsync(DateTime startedAt, CompileTarget target, JsonObject args)
     {
         if (string.IsNullOrWhiteSpace(target.ProjectPath))
         {
             return new BridgeReadiness(false, "projectPath is required for this compile request.", null, null, null);
         }
 
-        var readiness = await GetBridgeReadinessAsync(target.ProjectPath);
+        var readiness = await GetBridgeReadinessAsync(target.ProjectPath, args);
         if (readiness.isReady)
         {
             return readiness;
@@ -175,10 +184,14 @@ internal sealed partial class UnityBridgeClient
         };
     }
 
-    private async Task<BridgeReadiness> GetBridgeReadinessAsync(string projectPath)
+    private async Task<BridgeReadiness> GetBridgeReadinessAsync(string projectPath, JsonObject args)
     {
         var requestedProjectPath = UnityMcpOptions.NormalizePath(projectPath);
-        var resolution = await bridgeDirectory.ResolveAsync(requestedProjectPath);
+        var timeoutMs = Clamp(JsonArgs.TryGetInt(args, "bridgeReconnectTimeoutMs") ?? DefaultBridgeReconnectTimeoutMs, 0, MaxCompileTimeoutMs);
+        var pollIntervalMs = Clamp(JsonArgs.TryGetInt(args, "pollIntervalMs") ?? DefaultCompilePollIntervalMs, 100, MaxCompilePollIntervalMs);
+        var resolution = timeoutMs == 0
+            ? await bridgeDirectory.ResolveAsync(requestedProjectPath)
+            : await bridgeDirectory.WaitForProjectAsync(requestedProjectPath!, timeoutMs, pollIntervalMs);
         if (resolution.Endpoint != null)
         {
             return new BridgeReadiness(true, "Unity Bridge is connected to the requested project.", resolution.Endpoint.ProjectInfo, resolution.Endpoint.ProjectPath, requestedProjectPath, endpoint: resolution.Endpoint);
@@ -186,7 +199,7 @@ internal sealed partial class UnityBridgeClient
 
         return new BridgeReadiness(
             false,
-            resolution.Error ?? $"No Unity Bridge is connected to projectPath '{requestedProjectPath}'.",
+            (resolution.Error ?? $"No Unity Bridge is connected to projectPath '{requestedProjectPath}'.") + $" Waited {timeoutMs}ms for the bridge to reconnect before falling back.",
             null,
             null,
             requestedProjectPath);
@@ -194,7 +207,21 @@ internal sealed partial class UnityBridgeClient
 
     private async Task<BridgeReadiness> StopPlayModeBeforeCompileAsync(BridgeReadiness readiness, JsonObject args)
     {
-        var playState = await TryGetBridgeJsonNodeAsync(readiness.endpoint!, "compile-state");
+        JsonNode? playState = null;
+        try
+        {
+            playState = await TryGetBridgeJsonNodeAsync(readiness.endpoint!, "compile-state");
+        }
+        catch (Exception ex)
+        {
+            return readiness with
+            {
+                bridgeReconnected = true,
+                postPlayState = null,
+                reason = "Unity Bridge disconnected while checking compile state: " + ex.Message
+            };
+        }
+
         var shouldStopPlayMode = ReadBool(playState, "isPlaying") || ReadBool(playState, "isPlayingOrWillChangePlaymode");
         if (!shouldStopPlayMode)
         {
@@ -468,6 +495,7 @@ internal sealed partial class UnityBridgeClient
         string? expectedProjectPath,
         object? externalCompile = null,
         BridgeEndpoint? endpoint = null,
+        bool bridgeReconnected = false,
         bool stoppedPlayMode = false,
         JsonNode? stopPlayMode = null,
         JsonNode? postPlayState = null);

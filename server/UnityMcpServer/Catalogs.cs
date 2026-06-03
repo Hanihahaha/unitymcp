@@ -95,6 +95,7 @@ internal static class ToolCatalog
             {
                 ["projectPath"] = Schema.String("Unity project path to compile. Required."),
                 ["unityPath"] = Schema.String("Optional Unity executable path override. Defaults to UNITY_MCP_UNITY_PATH."),
+                ["bridgeReconnectTimeoutMs"] = Schema.Integer("Maximum time to wait for the Unity Bridge to reconnect before falling back to batchmode compile. Defaults to 120000, max 600000. Use 0 to disable."),
                 ["pollIntervalMs"] = Schema.Integer("Polling interval in milliseconds while waiting for Play mode to exit. Defaults to 500, max 5000."),
                 ["stopPlayModeTimeoutMs"] = Schema.Integer("Maximum time to wait for Unity to exit Play mode before compiling. Defaults to 30000, max 600000.")
             })
@@ -107,6 +108,7 @@ internal static class ToolCatalog
             {
                 ["projectPath"] = Schema.String("Unity project path to compile. Required."),
                 ["unityPath"] = Schema.String("Optional Unity executable path override. Defaults to UNITY_MCP_UNITY_PATH."),
+                ["bridgeReconnectTimeoutMs"] = Schema.Integer("Maximum time to wait for the Unity Bridge to reconnect before falling back to batchmode compile. Defaults to 120000, max 600000. Use 0 to disable."),
                 ["timeoutMs"] = Schema.Integer("Maximum time to wait in milliseconds. Defaults to 120000, max 600000."),
                 ["pollIntervalMs"] = Schema.Integer("Polling interval in milliseconds while waiting. Defaults to 500, max 5000."),
                 ["stopPlayModeTimeoutMs"] = Schema.Integer("Maximum time to wait for Unity to exit Play mode before compiling. Defaults to 30000, max 600000."),
@@ -123,6 +125,7 @@ internal static class ToolCatalog
             {
                 ["projectPath"] = Schema.String("Unity project path to compile or wait for. Required."),
                 ["unityPath"] = Schema.String("Optional Unity executable path override. Defaults to UNITY_MCP_UNITY_PATH."),
+                ["bridgeReconnectTimeoutMs"] = Schema.Integer("Maximum time to wait for the Unity Bridge to reconnect before falling back to batchmode compile. Defaults to 120000, max 600000. Use 0 to disable."),
                 ["timeoutMs"] = Schema.Integer("Maximum time to wait in milliseconds. Defaults to 120000, max 600000."),
                 ["pollIntervalMs"] = Schema.Integer("Polling interval in milliseconds while waiting. Defaults to 500, max 5000."),
                 ["stopPlayModeTimeoutMs"] = Schema.Integer("Maximum time to wait for Unity to exit Play mode before waiting. Defaults to 30000, max 600000."),

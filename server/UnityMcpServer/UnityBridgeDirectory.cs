@@ -40,6 +40,31 @@ internal sealed class UnityBridgeDirectory
         return ResolveFrom(projectPath, endpoints);
     }
 
+    public async Task<BridgeEndpointResolution> WaitForProjectAsync(string projectPath, int timeoutMs, int pollIntervalMs)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        BridgeEndpointResolution? lastResolution = null;
+
+        while (DateTime.UtcNow <= deadline)
+        {
+            lastResolution = await ResolveAsync(projectPath);
+            if (lastResolution.Endpoint != null)
+            {
+                return lastResolution;
+            }
+
+            var remainingMs = (int)(deadline - DateTime.UtcNow).TotalMilliseconds;
+            if (remainingMs <= 0)
+            {
+                break;
+            }
+
+            await Task.Delay(Math.Min(pollIntervalMs, remainingMs));
+        }
+
+        return lastResolution ?? await ResolveAsync(projectPath);
+    }
+
     private static BridgeEndpointResolution ResolveFrom(string? projectPath, IReadOnlyList<BridgeEndpoint> endpoints)
     {
         var normalizedProjectPath = UnityMcpOptions.NormalizePath(projectPath);
