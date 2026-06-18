@@ -95,7 +95,7 @@ internal sealed partial class UnityBridgeClient
         }
 
         var wait = await WaitForCompileCompleteAsync(readiness.endpoint!, args, startedAt, DefaultCompileSettleMs);
-        var logs = await TryReadLogsAsync(readiness.endpoint!, JsonArgs.TryGetInt(args, "logLimit") ?? 100);
+        var logs = await TryReadCompileLogsAsync(readiness.endpoint!, JsonArgs.TryGetInt(args, "logLimit") ?? 100, startedAt);
 
         return new
         {
@@ -427,11 +427,16 @@ internal sealed partial class UnityBridgeClient
         };
     }
 
-    private async Task<JsonNode?> TryReadLogsAsync(BridgeEndpoint endpoint, int limit)
+    private async Task<JsonNode?> TryReadCompileLogsAsync(BridgeEndpoint endpoint, int limit, DateTime sinceUtc)
     {
         try
         {
-            using var document = await GetBridgeJsonAsync(endpoint, "logs?limit=" + Clamp(limit, 1, 500));
+            var query = new QueryStringBuilder();
+            query.Add("limit", Clamp(limit, 1, 500));
+            query.Add("types", "Error,Assert,Exception");
+            query.Add("sinceUtc", sinceUtc.ToString("O"));
+
+            using var document = await GetBridgeJsonAsync(endpoint, "logs" + query);
             return document == null ? null : JsonNode.Parse(document.RootElement.GetRawText());
         }
         catch

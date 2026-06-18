@@ -323,12 +323,13 @@ namespace UnityMcpBridge.Editor
         {
             var limit = Clamp(ParseInt(query["limit"], 100), 1, MaxLogs);
             var types = ParseLogTypes(query["types"]);
+            var sinceUtc = ParseUtcDateTime(query["sinceUtc"]);
 
             lock (LogsLock)
             {
-                var filtered = types.Count == 0
-                    ? Logs
-                    : Logs.FindAll(entry => types.Contains(entry.type));
+                var filtered = Logs.FindAll(entry =>
+                    (types.Count == 0 || types.Contains(entry.type))
+                    && (sinceUtc == null || IsOnOrAfter(entry.timestampUtc, sinceUtc.Value)));
 
                 var start = Math.Max(0, filtered.Count - limit);
                 return new LogsDto
@@ -359,6 +360,32 @@ namespace UnityMcpBridge.Editor
             }
 
             return types;
+        }
+
+        private static DateTime? ParseUtcDateTime(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            DateTime parsed;
+            if (!DateTime.TryParse(
+                value,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal,
+                out parsed))
+            {
+                return null;
+            }
+
+            return parsed.ToUniversalTime();
+        }
+
+        private static bool IsOnOrAfter(string timestampUtc, DateTime sinceUtc)
+        {
+            var timestamp = ParseUtcDateTime(timestampUtc);
+            return timestamp != null && timestamp.Value >= sinceUtc;
         }
 
         private static void EnqueueLogWarning(string message)
