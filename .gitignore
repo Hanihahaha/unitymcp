@@ -3,3 +3,4 @@ server/UnityMcpServer/obj/*
 *.meta
 *.sln
 .vs/
+artifacts/
