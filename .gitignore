@@ -1,6 +1,7 @@
 server/UnityMcpServer/bin/*
 server/UnityMcpServer/obj/*
 *.meta
+!unity/UnityMcpBridge/**/*.meta
 *.sln
 .vs/
 artifacts/

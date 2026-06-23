@@ -70,8 +70,8 @@ Unity Bridge：
 
 1. 打开你的 Unity 项目。
 2. 打开 **Window > Package Manager**。
-3. 点击 **+ > Add package from disk...**。
-4. 选择本仓库里的 `unity/UnityMcpBridge/package.json`。
+3. 点击 **+ > Add package from git URL...**。
+4. 输入`https://github.com/Hanihahaha/unitymcp.git?path=/unity/UnityMcpBridge`。
 5. 通过 **MCP > 启动桥接服务** 启动。
 
 桥接服务默认监听：

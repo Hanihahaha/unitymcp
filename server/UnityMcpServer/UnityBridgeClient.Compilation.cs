@@ -109,7 +109,7 @@ internal sealed partial class UnityBridgeClient
             logs,
             stoppedPlayMode = readiness.stoppedPlayMode,
             stopPlayMode = readiness.stopPlayMode,
-            message = wait.message
+            message = BuildCompileMessage(wait.message, logs)
         };
     }
 
@@ -445,6 +445,44 @@ internal sealed partial class UnityBridgeClient
         }
     }
 
+    private static string BuildCompileMessage(string message, JsonNode? logs)
+    {
+        var logSummary = BuildCompileLogSummary(logs);
+        return string.IsNullOrWhiteSpace(logSummary)
+            ? message
+            : message + " " + logSummary;
+    }
+
+    private static string? BuildCompileLogSummary(JsonNode? logs)
+    {
+        if (logs is not JsonObject obj
+            || !obj.TryGetPropertyValue("entries", out var entriesNode)
+            || entriesNode is not JsonArray entries
+            || entries.Count == 0)
+        {
+            return null;
+        }
+
+        var count = ReadInt(logs, "count") ?? entries.Count;
+        var firstEntry = entries.OfType<JsonObject>().FirstOrDefault();
+        if (firstEntry == null)
+        {
+            return null;
+        }
+
+        var type = TryReadString(firstEntry, "type") ?? "Error";
+        var message = TryReadString(firstEntry, "message") ?? TryReadString(firstEntry, "stackTrace") ?? "<no message>";
+        return $"Unity reported {count} error log(s). First {type}: {CondenseForMessage(message, 1000)}";
+    }
+
+    private static string CondenseForMessage(string value, int maxLength)
+    {
+        var condensed = string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return condensed.Length <= maxLength
+            ? condensed
+            : condensed[..maxLength] + "...";
+    }
+
     private async Task<JsonNode?> TryGetBridgeJsonNodeAsync(BridgeEndpoint endpoint, string path)
     {
         using var document = await GetBridgeJsonAsync(endpoint, path);
@@ -457,6 +495,15 @@ internal sealed partial class UnityBridgeClient
             && obj.TryGetPropertyValue(key, out var value)
             && value != null
             && value.GetValue<bool>();
+    }
+
+    private static int? ReadInt(JsonNode? node, string key)
+    {
+        return node is JsonObject obj
+            && obj.TryGetPropertyValue(key, out var value)
+            && value != null
+            ? value.GetValue<int>()
+            : null;
     }
 
     private static bool ReadError(JsonNode? node)
