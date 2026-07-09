@@ -43,6 +43,7 @@ internal sealed partial class UnityBridgeClient
             "unity_get_warning_logs" => BuildTypedLogsPath(args, "Warning"),
             "unity_enter_play_mode" => "enter-play-mode",
             "unity_stop_play_mode" => "stop-play-mode",
+            "unity_execute_menu_item" => BuildExecuteMenuItemPath(args),
             _ => null
         };
 
@@ -267,5 +268,18 @@ internal sealed partial class UnityBridgeClient
         query.Add("limit", JsonArgs.TryGetInt(args, "limit"));
         query.Add("types", types);
         return "logs" + query;
+    }
+
+    private static string BuildExecuteMenuItemPath(JsonObject args)
+    {
+        var menuPath = JsonArgs.TryGetString(args, "menuPath") ?? JsonArgs.TryGetString(args, "path");
+        if (string.IsNullOrWhiteSpace(menuPath))
+        {
+            throw new ArgumentException("unity_execute_menu_item requires 'menuPath'.");
+        }
+
+        var query = new QueryStringBuilder();
+        query.Add("path", menuPath);
+        return "execute-menu-item" + query;
     }
 }

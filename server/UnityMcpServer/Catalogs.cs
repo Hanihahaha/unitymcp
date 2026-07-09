@@ -230,6 +230,15 @@ internal static class ToolCatalog
             name = "unity_stop_play_mode",
             description = "Exit Unity Play mode if the Editor is currently playing or changing play state.",
             inputSchema = ProjectSchema()
+        },
+        new
+        {
+            name = "unity_execute_menu_item",
+            description = "Execute a Unity Editor main menu item by its menu path, such as Tools/My Action or MCP/Start Bridge Service. The menu item is invoked on the Unity main thread.",
+            inputSchema = ProjectSchema(new Dictionary<string, object>
+            {
+                ["menuPath"] = Schema.String("Unity Editor menu path to execute, such as Tools/My Action.")
+            }, ["menuPath"])
         }
     ];
 }

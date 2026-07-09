@@ -36,6 +36,7 @@
 - `unity_get_warning_logs`
 - `unity_enter_play_mode`
 - `unity_stop_play_mode`
+- `unity_execute_menu_item`
 
 `unity_get_object_scripts` 用于查询某个 GameObject 上挂载的脚本，以及脚本暴露在 Inspector 中的序列化字段。参数：
 
@@ -100,6 +101,7 @@ GET /logs?types=Error,Assert,Exception&limit=100
 GET /logs?types=Warning&limit=100
 GET /enter-play-mode
 GET /stop-play-mode
+GET /execute-menu-item?path=Tools/My%20Action
 ```
 
 ## 构建 MCP 服务
@@ -180,3 +182,4 @@ codex mcp add unity --env UNITY_MCP_BRIDGE_URL=http://127.0.0.1:8765 --env UNITY
 - Inspector 字段查询只读取 Unity 序列化系统可见的字段，不会调用属性 getter。
 - `unity_enter_play_mode` 会使用当前激活场景进入播放模式。
 - `unity_stop_play_mode` 会在 Unity 正在播放或切换播放状态时请求退出播放模式；如果当前没有播放，会返回成功并说明无需退出。
+- `unity_execute_menu_item` 会按菜单路径调用 Unity Editor 主菜单项，例如 `Tools/My Action`。

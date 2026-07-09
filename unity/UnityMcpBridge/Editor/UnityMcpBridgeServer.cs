@@ -261,6 +261,9 @@ namespace UnityMcpBridge.Editor
                     case "stop-play-mode":
                         await WriteJson(context, 200, await RunOnMainThread(StopPlayMode));
                         break;
+                    case "execute-menu-item":
+                        await WriteJson(context, 200, await RunOnMainThread(() => ExecuteMenuItem(context.Request.QueryString)));
+                        break;
                     default:
                         await WriteJson(context, 404, new ErrorDto("not_found", "未知接口：" + path));
                         return;
