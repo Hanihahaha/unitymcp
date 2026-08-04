@@ -31,6 +31,8 @@
 - `unity_query_objects`
 - `unity_get_object`
 - `unity_get_object_scripts`
+- `unity_invoke_component_method`
+- `unity_capture_image`
 - `unity_get_logs`
 - `unity_get_error_logs`
 - `unity_get_warning_logs`
@@ -43,6 +45,68 @@
 - `id`：Unity GameObject 实例 ID。
 - `script`：可选，按脚本名过滤，例如 `PlayerController`。
 - `limit`：可选，每个脚本最多返回的字段数量，默认 200，最大 1000。
+
+它也会返回脚本中用 `[UnityMcpCallable]` 显式开放给 Agent 的方法签名。调用方法使用 `unity_invoke_component_method`：
+
+```json
+{
+  "projectPath": "E:/Project/MyGame",
+  "id": 12345,
+  "component": "PlayerController",
+  "method": "Respawn",
+  "arguments": [3, true]
+}
+```
+
+脚本方法必须是 `public` 实例方法，并显式添加 Attribute：
+
+```csharp
+using UnityMcpBridge;
+using UnityEngine;
+
+public class PlayerController : MonoBehaviour
+{
+    [UnityMcpCallable]
+    public bool Respawn(int checkpoint, bool restoreHealth)
+    {
+        return true;
+    }
+
+    [UnityMcpCallable(AllowInEditMode = true)]
+    public void MoveForAuthoring(Vector3 position)
+    {
+        transform.position = position;
+    }
+}
+```
+
+默认只允许 Play Mode 调用。`AllowInEditMode` 必须由方法作者显式开启。当前支持同步方法、基础类型、枚举、Unity 可序列化对象/结构体，以及通过实例 ID 传入的 `UnityEngine.Object`；不支持重载、泛型、`ref`/`out`、数组、协程和 `Task`。
+
+## 截图
+
+`unity_capture_image` 会直接返回 MCP `image` content。它不依赖具体 UI 框架，支持这些模式：
+
+- `provider`：调用目标 GameObject 上实现 `IUnityMcpImageProvider` 的项目适配器，需要 Play Mode。
+- `camera`：渲染目标 GameObject 上的 Camera，可在 Edit Mode 使用。
+- `game_view`：截取当前 Game View，需要 Play Mode。
+
+Provider 调用示例：
+
+```json
+{
+  "projectPath": "E:/Project/MyGame",
+  "mode": "provider",
+  "id": 12345,
+  "providerComponentInstanceId": 23456,
+  "captureName": "default",
+  "width": 1024,
+  "height": 1024,
+  "format": "png",
+  "options": {}
+}
+```
+
+`IUnityMcpImageProvider` 定义在 `UnityMcpBridge.Runtime`。项目适配器返回 PNG 字节、MIME 类型和尺寸；Bridge 负责主线程调度、逐 Editor update 推进协程、超时和大小校验，MCP Server 负责生成标准图片内容。第三方框架代码应只存在于项目适配器中，不应加入 Bridge 核心。
 
 ## 代码结构
 
@@ -96,6 +160,8 @@ GET /select-scene?path=Assets/Scenes/SampleScene.unity
 GET /objects?name=Player&component=Rigidbody&limit=20
 GET /object?id=12345
 GET /object-scripts?id=12345&script=PlayerController&limit=200
+POST /invoke-component-method
+POST /capture-image
 GET /logs?limit=100
 GET /logs?types=Error,Assert,Exception&limit=100
 GET /logs?types=Warning&limit=100
@@ -180,6 +246,10 @@ codex mcp add unity --env UNITY_MCP_BRIDGE_URL=http://127.0.0.1:8765 --env UNITY
 - `unity_find_scenes` 可以按名称或路径查找项目中的场景资产；`unity_select_scene` 会按项目相对路径打开场景。
 - 对象查询默认限制返回数量，避免一次返回过多内容。
 - Inspector 字段查询只读取 Unity 序列化系统可见的字段，不会调用属性 getter。
+- `unity_get_object_scripts` 会列出 `[UnityMcpCallable]` 方法，`unity_invoke_component_method` 会在 Unity 主线程调用其中的唯一 public 实例方法。
+- `unity_get_object_scripts` 的 `isImageProvider` 表示脚本是否可作为 `unity_capture_image` 的 provider。
+- `unity_capture_image` 当前输出 PNG，单边最大 4096 像素，编码后最大 16 MB；图片 Base64 只放在 MCP image content 中，不会复制到 structured content。
+- 进入 Play Mode 或脚本域重载后 GameObject 实例 ID 可能变化，调用前应重新查询对象。
 - `unity_enter_play_mode` 会使用当前激活场景进入播放模式。
 - `unity_stop_play_mode` 会在 Unity 正在播放或切换播放状态时请求退出播放模式；如果当前没有播放，会返回成功并说明无需退出。
 - `unity_execute_menu_item` 会按菜单路径调用 Unity Editor 主菜单项，例如 `Tools/My Action`。

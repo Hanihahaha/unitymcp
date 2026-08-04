@@ -1,0 +1,18 @@
+{
+  "name": "UnityMcpBridge.Editor",
+  "rootNamespace": "UnityMcpBridge.Editor",
+  "references": [
+    "GUID:49b3c77641ca4447a9edd374086a207d"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

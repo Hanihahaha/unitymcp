@@ -24,4 +24,19 @@ internal static class Schema
     {
         return new { type = "integer", description };
     }
+
+    public static object Array(object items, string description)
+    {
+        return new { type = "array", items, description };
+    }
+
+    public static object Any()
+    {
+        return new { };
+    }
+
+    public static object Any(string description)
+    {
+        return new { description };
+    }
 }

@@ -122,6 +122,42 @@ internal sealed class McpServer
             return;
         }
 
+        if (result is McpImageToolResult imageResult)
+        {
+            var metadataJson = imageResult.Metadata.ToJsonString(JsonOptions);
+            object[] content = imageResult.IsError
+                ?
+                [
+                    new
+                    {
+                        type = "text",
+                        text = metadataJson
+                    }
+                ]
+                :
+                [
+                    new
+                    {
+                        type = "image",
+                        data = imageResult.Data,
+                        mimeType = imageResult.MimeType
+                    },
+                    new
+                    {
+                        type = "text",
+                        text = metadataJson
+                    }
+                ];
+
+            await WriteResultAsync(id, new
+            {
+                content,
+                structuredContent = imageResult.Metadata,
+                isError = imageResult.IsError
+            });
+            return;
+        }
+
         var rawJson = result is JsonDocument document
             ? document.RootElement.GetRawText()
             : JsonSerializer.Serialize(result, JsonOptions);

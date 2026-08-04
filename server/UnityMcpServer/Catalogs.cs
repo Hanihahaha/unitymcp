@@ -183,13 +183,43 @@ internal static class ToolCatalog
         new
         {
             name = "unity_get_object_scripts",
-            description = "Get MonoBehaviour scripts attached to a GameObject and their Inspector-visible serialized fields.",
+            description = "Get MonoBehaviour scripts attached to a GameObject, their Inspector-visible serialized fields, methods exposed with [UnityMcpCallable], and whether each script implements IUnityMcpImageProvider.",
             inputSchema = ProjectSchema(new Dictionary<string, object>
             {
                 ["id"] = Schema.Integer("Unity GameObject instance id."),
                 ["script"] = Schema.String("Optional script name filter, such as PlayerController."),
                 ["limit"] = Schema.Integer("Maximum Inspector fields to return per script. Defaults to 200, max 1000.")
             }, ["id"])
+        },
+        new
+        {
+            name = "unity_invoke_component_method",
+            description = "Invoke a public instance method marked with [UnityMcpCallable] on a MonoBehaviour attached to a scene GameObject. Methods are Play Mode only unless their attribute explicitly allows Edit Mode.",
+            inputSchema = ProjectSchema(new Dictionary<string, object>
+            {
+                ["id"] = Schema.Integer("Unity GameObject instance id. Query the object again after entering Play Mode because instance ids may change."),
+                ["component"] = Schema.String("Component type name or fully qualified type name, such as PlayerController or Game.PlayerController."),
+                ["componentInstanceId"] = Schema.Integer("Optional component instance id used to disambiguate multiple components of the same type on one GameObject."),
+                ["method"] = Schema.String("Exact name of a public instance method marked with [UnityMcpCallable]. Exposed overloads are rejected."),
+                ["arguments"] = Schema.Array(Schema.Any(), "Ordered JSON arguments. Supports null, primitives, enums, serializable objects and structs, and UnityEngine.Object references by instance id.")
+            }, ["id", "component", "method"])
+        },
+        new
+        {
+            name = "unity_capture_image",
+            description = "Capture an image from Unity and return it as MCP image content. Modes: provider uses a project-defined IUnityMcpImageProvider on a GameObject; camera renders a Camera component; game_view captures the current Game View. provider and game_view require Play Mode.",
+            inputSchema = ProjectSchema(new Dictionary<string, object>
+            {
+                ["mode"] = Schema.String("Capture mode: provider, camera, or game_view. Defaults to provider."),
+                ["id"] = Schema.Integer("GameObject instance id. Required for provider and camera modes."),
+                ["providerComponentInstanceId"] = Schema.Integer("Optional MonoBehaviour instance id used to select one IUnityMcpImageProvider when multiple providers are attached."),
+                ["captureName"] = Schema.String("Optional provider-defined capture operation name. Defaults to default."),
+                ["width"] = Schema.Integer("Optional output width in pixels. Defaults to the source width, max 4096."),
+                ["height"] = Schema.Integer("Optional output height in pixels. Defaults to the source height, max 4096."),
+                ["format"] = Schema.String("Image format. Currently only png is supported."),
+                ["options"] = Schema.Any("Optional provider-specific JSON value. It is passed to IUnityMcpImageProvider as OptionsJson."),
+                ["timeoutMs"] = Schema.Integer("Capture timeout in milliseconds. Defaults to 10000, max 60000.")
+            })
         },
         new
         {

@@ -1,8 +1,11 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
 internal sealed partial class UnityBridgeClient
 {
+    private const int MaxImageBase64Characters = 24 * 1024 * 1024;
+
     private readonly HttpClient http;
     private readonly UnityMcpOptions options;
     private readonly UnityBridgeDirectory bridgeDirectory;
@@ -38,6 +41,7 @@ internal sealed partial class UnityBridgeClient
             "unity_query_objects" => BuildObjectsPath(args),
             "unity_get_object" => BuildObjectPath(args),
             "unity_get_object_scripts" => BuildObjectScriptsPath(args),
+            "unity_invoke_component_method" => "invoke-component-method",
             "unity_get_logs" => BuildLogsPath(args),
             "unity_get_error_logs" => BuildTypedLogsPath(args, "Error,Assert,Exception"),
             "unity_get_warning_logs" => BuildTypedLogsPath(args, "Warning"),
@@ -52,8 +56,57 @@ internal sealed partial class UnityBridgeClient
             "unity_request_script_compile" => await RequestScriptCompileAsync(args),
             "unity_request_script_compile_and_wait" => await RequestScriptCompileAndWaitAsync(args),
             "unity_wait_for_compile_complete" => await WaitForCompileCompleteAsync(args),
+            "unity_capture_image" => await CaptureImageAsync(args),
+            "unity_invoke_component_method" => await CallSelectedBridgePostAsync(
+                path!,
+                args,
+                BuildInvokeComponentMethodPayload(args)),
             _ => path == null ? null : await CallSelectedBridgeAsync(path, args)
         };
+    }
+
+    private async Task<McpImageToolResult> CaptureImageAsync(JsonObject args)
+    {
+        using var response = await CallSelectedBridgePostAsync(
+            "capture-image",
+            args,
+            BuildCaptureImagePayload(args));
+
+        var metadata = JsonNode.Parse(response!.RootElement.GetRawText()) as JsonObject
+            ?? new JsonObject
+            {
+                ["error"] = "invalid_capture_response",
+                ["message"] = "Unity Bridge returned a non-object capture response."
+            };
+
+        var ok = metadata["ok"]?.GetValue<bool>() ?? false;
+        if (!ok)
+        {
+            metadata.Remove("data");
+            return new McpImageToolResult(true, null, null, metadata);
+        }
+
+        var mimeType = metadata["mimeType"]?.GetValue<string>();
+        var data = metadata["data"]?.GetValue<string>();
+        metadata.Remove("data");
+
+        if (string.IsNullOrWhiteSpace(mimeType)
+            || !mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(data))
+        {
+            metadata["error"] = "invalid_capture_response";
+            metadata["message"] = "Unity Bridge capture response is missing image data or MIME type.";
+            return new McpImageToolResult(true, null, null, metadata);
+        }
+
+        if (data.Length > MaxImageBase64Characters)
+        {
+            metadata["error"] = "image_too_large";
+            metadata["message"] = "The encoded image exceeds the MCP response size limit.";
+            return new McpImageToolResult(true, null, null, metadata);
+        }
+
+        return new McpImageToolResult(false, mimeType, data, metadata);
     }
 
     public Task<JsonDocument?> ReadResourceAsync(string? uri)
@@ -74,6 +127,26 @@ internal sealed partial class UnityBridgeClient
     {
         var endpoint = await ResolveRequiredEndpointAsync(JsonArgs.TryGetString(args, "projectPath"));
         return await GetBridgeJsonAsync(endpoint, path, cancellationToken);
+    }
+
+    private async Task<JsonDocument?> CallSelectedBridgePostAsync(
+        string path,
+        JsonObject args,
+        object payload,
+        CancellationToken cancellationToken = default)
+    {
+        var endpoint = await ResolveRequiredEndpointAsync(JsonArgs.TryGetString(args, "projectPath"));
+        var json = JsonSerializer.Serialize(payload);
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        using var response = await http.PostAsync(BuildBridgeUri(endpoint.BaseUrl, path), content, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Unity bridge returned {(int)response.StatusCode}: {body}");
+        }
+
+        return JsonDocument.Parse(body);
     }
 
     private async Task<JsonDocument?> ReadResourceFromSelectedBridgeAsync(string path, CancellationToken cancellationToken = default)
@@ -252,6 +325,67 @@ internal sealed partial class UnityBridgeClient
         query.Add("script", JsonArgs.TryGetString(args, "script"));
         query.Add("limit", JsonArgs.TryGetInt(args, "limit"));
         return "object-scripts" + query;
+    }
+
+    private static object BuildInvokeComponentMethodPayload(JsonObject args)
+    {
+        var id = JsonArgs.TryGetInt(args, "id") ?? JsonArgs.TryGetInt(args, "instanceId");
+        if (id == null)
+        {
+            throw new ArgumentException("unity_invoke_component_method requires 'id'.");
+        }
+
+        var component = JsonArgs.TryGetString(args, "component");
+        if (string.IsNullOrWhiteSpace(component))
+        {
+            throw new ArgumentException("unity_invoke_component_method requires 'component'.");
+        }
+
+        var method = JsonArgs.TryGetString(args, "method");
+        if (string.IsNullOrWhiteSpace(method))
+        {
+            throw new ArgumentException("unity_invoke_component_method requires 'method'.");
+        }
+
+        var argumentNodes = new List<JsonNode?>();
+        if (args.TryGetPropertyValue("arguments", out var argumentsNode) && argumentsNode != null)
+        {
+            if (argumentsNode is not JsonArray arguments)
+            {
+                throw new ArgumentException("unity_invoke_component_method 'arguments' must be an array.");
+            }
+
+            argumentNodes.AddRange(arguments);
+        }
+
+        return new
+        {
+            id,
+            component,
+            componentInstanceId = JsonArgs.TryGetInt(args, "componentInstanceId"),
+            method,
+            arguments = argumentNodes.Select(node => new
+            {
+                json = node?.ToJsonString() ?? "null"
+            }).ToArray()
+        };
+    }
+
+    private static object BuildCaptureImagePayload(JsonObject args)
+    {
+        args.TryGetPropertyValue("options", out var optionsNode);
+        return new
+        {
+            mode = JsonArgs.TryGetString(args, "mode") ?? "provider",
+            id = JsonArgs.TryGetInt(args, "id") ?? JsonArgs.TryGetInt(args, "instanceId"),
+            providerComponentInstanceId = JsonArgs.TryGetInt(args, "providerComponentInstanceId"),
+            captureName = JsonArgs.TryGetString(args, "captureName") ?? "default",
+            width = JsonArgs.TryGetInt(args, "width"),
+            height = JsonArgs.TryGetInt(args, "height"),
+            format = JsonArgs.TryGetString(args, "format") ?? "png",
+            optionsJson = optionsNode?.ToJsonString() ?? "{}",
+            timeoutMs = JsonArgs.TryGetInt(args, "timeoutMs")
+        };
     }
 
     private static string BuildLogsPath(JsonObject args)

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityMcpBridge;
 
 namespace UnityMcpBridge.Editor
 {
@@ -49,6 +50,7 @@ namespace UnityMcpBridge.Editor
         private static ScriptDto ToScriptDto(MonoBehaviour component, int fieldLimit)
         {
             var type = component.GetType();
+            var callableMethods = BuildCallableMethods(type);
             var fields = new List<InspectorFieldDto>();
             var serializedObject = new SerializedObject(component);
             var iterator = serializedObject.GetIterator();
@@ -78,7 +80,10 @@ namespace UnityMcpBridge.Editor
                 enabled = component.enabled,
                 fieldCount = fields.Count,
                 truncated = fields.Count >= fieldLimit && iterator.NextVisible(false),
-                fields = fields.ToArray()
+                fields = fields.ToArray(),
+                isImageProvider = component is IUnityMcpImageProvider,
+                callableMethodCount = callableMethods.Length,
+                callableMethods = callableMethods
             };
         }
 

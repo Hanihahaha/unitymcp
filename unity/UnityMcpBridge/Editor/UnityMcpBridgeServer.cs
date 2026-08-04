@@ -18,6 +18,7 @@ namespace UnityMcpBridge.Editor
         private const int PortStart = 8765;
         private const int PortCount = 20;
         private const int MaxLogs = 500;
+        private const int MaxPostBodyBytes = 1024 * 1024;
 
         private static readonly ConcurrentQueue<Action> MainThreadActions = new ConcurrentQueue<Action>();
         private static readonly List<LogEntryDto> Logs = new List<LogEntryDto>();
@@ -206,13 +207,55 @@ namespace UnityMcpBridge.Editor
                     return;
                 }
 
-                if (context.Request.HttpMethod != "GET")
+                var path = context.Request.Url.AbsolutePath.Trim('/').ToLowerInvariant();
+                if (context.Request.HttpMethod == "POST")
                 {
-                    await WriteJson(context, 405, new ErrorDto("method_not_allowed", "只支持 GET 请求。"));
+                    if (path != "invoke-component-method" && path != "capture-image")
+                    {
+                        await WriteJson(context, 405, new ErrorDto("method_not_allowed", "该接口不支持 POST 请求。"));
+                        return;
+                    }
+
+                    if (context.Request.ContentLength64 > MaxPostBodyBytes)
+                    {
+                        await WriteJson(context, 413, new ErrorDto("payload_too_large", "POST 请求体不能超过 1 MB。"));
+                        return;
+                    }
+
+                    string requestBody;
+                    using (var reader = new System.IO.StreamReader(
+                        context.Request.InputStream,
+                        context.Request.ContentEncoding ?? Encoding.UTF8,
+                        true,
+                        4096,
+                        false))
+                    {
+                        requestBody = await reader.ReadToEndAsync();
+                    }
+
+                    if (Encoding.UTF8.GetByteCount(requestBody) > MaxPostBodyBytes)
+                    {
+                        await WriteJson(context, 413, new ErrorDto("payload_too_large", "POST 请求体不能超过 1 MB。"));
+                        return;
+                    }
+
+                    if (path == "capture-image")
+                    {
+                        await WriteJson(context, 200, await CaptureImageAsync(requestBody));
+                    }
+                    else
+                    {
+                        await WriteJson(context, 200, await RunOnMainThread(() => InvokeComponentMethod(requestBody)));
+                    }
                     return;
                 }
 
-                var path = context.Request.Url.AbsolutePath.Trim('/').ToLowerInvariant();
+                if (context.Request.HttpMethod != "GET")
+                {
+                    await WriteJson(context, 405, new ErrorDto("method_not_allowed", "只支持 GET、POST 和 OPTIONS 请求。"));
+                    return;
+                }
+
                 switch (path)
                 {
                     case "":
@@ -300,6 +343,7 @@ namespace UnityMcpBridge.Editor
             }
 
             CheckCompileWaiters();
+            AdvanceImageCaptures();
         }
 
         private static void CaptureLog(string condition, string stackTrace, LogType type)
@@ -412,7 +456,7 @@ namespace UnityMcpBridge.Editor
         private static void WriteCorsHeaders(HttpListenerResponse response)
         {
             response.Headers["Access-Control-Allow-Origin"] = "http://127.0.0.1";
-            response.Headers["Access-Control-Allow-Methods"] = "GET, OPTIONS";
+            response.Headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
             response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
         }
 

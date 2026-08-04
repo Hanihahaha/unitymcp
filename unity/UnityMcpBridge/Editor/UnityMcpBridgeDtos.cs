@@ -197,6 +197,9 @@ namespace UnityMcpBridge.Editor
             public int fieldCount;
             public bool truncated;
             public InspectorFieldDto[] fields;
+            public bool isImageProvider;
+            public int callableMethodCount;
+            public CallableMethodDto[] callableMethods;
         }
 
         [Serializable]
@@ -209,6 +212,99 @@ namespace UnityMcpBridge.Editor
             public bool isArray;
             public int arraySize;
             public string value;
+        }
+
+        [Serializable]
+        private class CallableMethodDto
+        {
+            public string name;
+            public string returnType;
+            public bool allowInEditMode;
+            public bool hasExposedOverloads;
+            public CallableParameterDto[] parameters;
+        }
+
+        [Serializable]
+        private class CallableParameterDto
+        {
+            public string name;
+            public string type;
+        }
+
+        [Serializable]
+        private class InvokeComponentMethodRequestDto
+        {
+            public int id = 0;
+            public string component = string.Empty;
+            public int componentInstanceId = 0;
+            public string method = string.Empty;
+            public InvokeArgumentDto[] arguments = new InvokeArgumentDto[0];
+        }
+
+        [Serializable]
+        private class InvokeArgumentDto
+        {
+            public string json = "null";
+        }
+
+        [Serializable]
+        private class JsonStringWrapperDto
+        {
+            public string value = string.Empty;
+        }
+
+        [Serializable]
+        private class UnityObjectReferenceArgumentDto
+        {
+            public int instanceId = 0;
+        }
+
+        [Serializable]
+        private class InvokeComponentMethodResultDto
+        {
+            public bool ok;
+            public int gameObjectInstanceId;
+            public int componentInstanceId;
+            public string componentType;
+            public string method;
+            public string returnType;
+            public string returnValueJson;
+        }
+
+        [Serializable]
+        private class UnityObjectReferenceResultDto
+        {
+            public int instanceId;
+            public string name;
+            public string type;
+        }
+
+        [Serializable]
+        private class CaptureImageRequestDto
+        {
+            public string mode = "provider";
+            public int id = 0;
+            public int providerComponentInstanceId = 0;
+            public string captureName = "default";
+            public int width = 0;
+            public int height = 0;
+            public string format = "png";
+            public string optionsJson = "{}";
+            public int timeoutMs = 10000;
+        }
+
+        [Serializable]
+        private class CaptureImageResultDto
+        {
+            public bool ok;
+            public string mode;
+            public string mimeType;
+            public string data;
+            public int width;
+            public int height;
+            public int byteCount;
+            public int gameObjectInstanceId;
+            public int sourceComponentInstanceId;
         }
 
         [Serializable]

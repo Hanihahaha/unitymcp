@@ -32,12 +32,37 @@
 
 ## 查询脚本字段
 
-使用 `/object-scripts?id=12345` 可以查询某个 GameObject 上挂载的脚本，以及这些脚本暴露在 Inspector 中的序列化字段。
+使用 `/object-scripts?id=12345` 可以查询某个 GameObject 上挂载的脚本、这些脚本暴露在 Inspector 中的序列化字段，以及用 `[UnityMcpCallable]` 开放的方法。
 
 可选参数：
 
 - `script`：按脚本名过滤，例如 `PlayerController`。
 - `limit`：每个脚本最多返回的字段数量，默认 200，最大 1000。
+
+## 调用组件方法
+
+组件方法必须是 public 实例方法，并显式添加 `[UnityMcpCallable]`：
+
+```csharp
+using UnityMcpBridge;
+
+public class PlayerController : UnityEngine.MonoBehaviour
+{
+    [UnityMcpCallable]
+    public bool Respawn(int checkpoint)
+    {
+        return true;
+    }
+}
+```
+
+Bridge 使用 `POST /invoke-component-method` 接收调用请求。该接口由 MCP Server 使用，并始终在 Unity 主线程执行方法。默认只允许 Play Mode；需要编辑模式调用时，由方法作者设置 `[UnityMcpCallable(AllowInEditMode = true)]`。
+
+## 截图
+
+Bridge 使用 `POST /capture-image` 执行通用截图。支持 `provider`、`camera` 和 `game_view` 模式。`provider` 模式通过 `UnityMcpBridge.Runtime.IUnityMcpImageProvider` 扩展，Bridge 本身不引用 FairyGUI、UGUI 或其他项目框架。
+
+Provider 返回图片字节后，Bridge 会校验尺寸和大小并编码为 Base64；MCP Server 会把它转换为标准 `type: image` 内容。Provider 协程每次 Editor update 推进一步，yield 的对象不会作为 Unity YieldInstruction 解释，因此需要等待一帧时使用 `yield return null`。
 
 ## 场景与播放模式
 
