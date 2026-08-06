@@ -1,0 +1,13 @@
+interface:
+  display_name: "Unity MCP"
+  short_description: "检查、控制并验证 Unity Editor 的实时状态"
+  default_prompt: "Use $unity-mcp to inspect and validate the current Unity project through Unity MCP."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "unity"
+      description: "Local Unity Editor bridge for live inspection, runtime control, image capture, logs, and script compilation"
+
+policy:
+  allow_implicit_invocation: true

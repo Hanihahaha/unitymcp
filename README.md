@@ -50,7 +50,7 @@
 
 ```json
 {
-  "projectPath": "E:/Project/MyGame",
+  "projectPath": "<unity-project-root>",
   "id": 12345,
   "component": "PlayerController",
   "method": "Respawn",
@@ -94,7 +94,7 @@ Provider 调用示例：
 
 ```json
 {
-  "projectPath": "E:/Project/MyGame",
+  "projectPath": "<unity-project-root>",
   "mode": "provider",
   "id": 12345,
   "providerComponentInstanceId": 23456,
@@ -191,7 +191,7 @@ $env:UNITY_MCP_BRIDGE_URL = "http://127.0.0.1:8765"
 可选自动编译配置：
 
 ```powershell
-$env:UNITY_MCP_UNITY_PATH = "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe"
+$env:UNITY_MCP_UNITY_PATH = "<unity-editor-installation>\Editor\<version>\Editor\Unity.exe"
 ```
 
 编译类工具调用时需要传入 `projectPath`。MCP Server 会检查当前 Bridge 连接的 Unity 项目是否匹配该路径：匹配时使用运行中的 Editor 刷新并等待编译；Bridge 未启动或项目路径不匹配时，使用 `UNITY_MCP_UNITY_PATH` 指向的 Unity batchmode 编译本次传入的 `projectPath`。也可以在工具参数里传 `unityPath` 覆盖默认 Unity 路径。
@@ -213,11 +213,11 @@ $env:UNITY_MCP_UNITY_PATH = "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Edito
       "args": [
         "run",
         "--project",
-        "E:\\Project\\unitymcp\\server\\UnityMcpServer\\UnityMcpServer.csproj"
+        "<repository-root>/server/UnityMcpServer/UnityMcpServer.csproj"
       ],
       "env": {
         "UNITY_MCP_BRIDGE_URL": "http://127.0.0.1:8765",
-        "UNITY_MCP_UNITY_PATH": "C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.62f1\\Editor\\Unity.exe"
+        "UNITY_MCP_UNITY_PATH": "<unity-editor-installation>/Editor/<version>/Editor/Unity.exe"
       }
     }
   }
@@ -227,7 +227,7 @@ $env:UNITY_MCP_UNITY_PATH = "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Edito
 ## Codex配置
 ```powershell
 
-codex mcp add unity --env UNITY_MCP_BRIDGE_URL=http://127.0.0.1:8765 --env UNITY_MCP_UNITY_PATH="C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe" -- dotnet run --project "你的路径\UnityMcpServer\UnityMcpServer.csproj"
+codex mcp add unity --env UNITY_MCP_BRIDGE_URL=http://127.0.0.1:8765 --env UNITY_MCP_UNITY_PATH="<unity-editor-installation>\Editor\<version>\Editor\Unity.exe" -- dotnet run --project "<repository-root>\server\UnityMcpServer\UnityMcpServer.csproj"
 
 ```
 
